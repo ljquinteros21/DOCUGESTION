@@ -150,10 +150,32 @@ const S = {
   sidebarItem: (active, color) => ({ display: "flex", alignItems: "center", gap: 12, padding: "11px 20px", cursor: "pointer", background: active ? "#f1f5f9" : "none", borderLeft: active ? `3px solid ${color}` : "3px solid transparent", color: active ? "#1e293b" : "#64748b", fontWeight: active ? 600 : 400, fontSize: 14 }),
 };
 
+// ── ApiKeyInput ───────────────────────────────────────────────────────────────
+
+function ApiKeyInput({ current, onSave }) {
+  const [val, setVal] = useState(current || "");
+  return React.createElement("div", { style: { marginTop: 10 } },
+    React.createElement("input", {
+      type: "password",
+      placeholder: "sk-ant-...",
+      value: val,
+      onChange: e => setVal(e.target.value),
+      style: { width: "100%", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 10px", fontSize: 13, marginBottom: 8, boxSizing: "border-box" }
+    }),
+    React.createElement("button", {
+      style: { background: "#6366f1", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", width: "100%" },
+      onClick: () => onSave(val)
+    }, "💾 Guardar key"),
+    React.createElement("div", { style: { fontSize: 11, color: "#94a3b8", marginTop: 6 } }, "Se guarda solo en este dispositivo.")
+  );
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
 
 function App() {
   const [auth, setAuth]               = useState("idle"); // idle | loading | ready | error
+  const [apiKey, setApiKey]           = useState(localStorage.getItem("anthropic_key") || "");
+  const [showKeyInput, setShowKeyInput] = useState(false);
   const [activeModule, setActiveMod]  = useState("Facturas");
   const [data, setData]               = useState({});
   const [view, setView]               = useState("dashboard");
@@ -195,6 +217,8 @@ function App() {
   };
 
   const handleLogout = () => { window._gtoken = null; setAuth("idle"); setData({}); };
+
+  const saveApiKey = key => { localStorage.setItem("anthropic_key", key); setApiKey(key); setShowKeyInput(false); };
 
   // ── Data loading ──
   const loadAll = async () => {
@@ -275,9 +299,10 @@ function App() {
       const b64 = ev.target.result.split(",")[1];
       setImgPreview(ev.target.result);
       try {
+        if (!apiKey) { setOcrError("Configurá tu API key de Anthropic en el menú ⚙️ para usar el escáner."); setOcrLoading(false); return; }
         const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
           body: JSON.stringify({
             model: "claude-sonnet-4-20250514", max_tokens: 1000,
             messages: [{ role: "user", content: [
@@ -351,6 +376,10 @@ function App() {
         ),
         React.createElement("div", { style: { padding: "16px 20px", borderTop: "1px solid #f1f5f9", marginTop: 8 } },
           React.createElement("button", { style: { ...S.btn("#64748b", true), width: "100%", fontSize: 13 }, onClick: handleLogout }, "🔓 Cerrar sesión"),
+        React.createElement("div", { style: { padding: "12px 20px" } },
+          React.createElement("button", { style: { ...S.btn("#6366f1", true), width: "100%", fontSize: 13 }, onClick: () => setShowKeyInput(v => !v) }, "⚙️ API Key Anthropic"),
+          showKeyInput && React.createElement(ApiKeyInput, { current: apiKey, onSave: saveApiKey }),
+        ),
         ),
       ),
 
