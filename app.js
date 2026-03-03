@@ -174,6 +174,8 @@ function ApiKeyInput({ current, onSave }) {
 
 function App() {
   const [auth, setAuth]               = useState("idle"); // idle | loading | ready | error
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [globalResults, setGlobalResults] = useState(null);
   const [apiKey, setApiKey]           = useState(localStorage.getItem("anthropic_key") || "");
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [activeModule, setActiveMod]  = useState("Facturas");
@@ -321,7 +323,19 @@ function App() {
     reader.readAsDataURL(file);
   };
 
-  // ── Dashboard data ──
+  const doGlobalSearch = q => {
+    if (!q.trim()) { setGlobalResults(null); return; }
+    const results = {};
+    MODULES.forEach(m => {
+      const hits = (data[m.id] || []).filter(r =>
+        ["Cliente","Destinatario","CUIT"].some(f => String(r[f] || "").toLowerCase().includes(q.toLowerCase()))
+      );
+      if (hits.length) results[m.id] = { ...m, hits };
+    });
+    setGlobalResults(results);
+  };
+
+
   const totalByMod = MODULES.map(m => ({ ...m, count: (data[m.id] || []).length }));
   const recentAll  = MODULES.flatMap(m => (data[m.id] || []).map(r => ({ ...r, _modLabel: m.label, _modColor: m.color }))).slice(0, 8);
 
@@ -390,6 +404,54 @@ function App() {
         // Dashboard
         !loadingMod && view === "dashboard" && React.createElement(React.Fragment, null,
           React.createElement("h2", { style: S.h2 }, "📊 Dashboard"),
+
+          // Buscador global
+          React.createElement("div", { style: { ...S.card, marginBottom: 16 } },
+            React.createElement("div", { style: { fontWeight: 600, fontSize: 14, color: "#475569", marginBottom: 10 } }, "🔍 Buscar en todos los módulos"),
+            React.createElement("div", { style: { display: "flex", gap: 8 } },
+              React.createElement("input", {
+                style: { ...S.input, flex: 1 },
+                placeholder: "Nombre de cliente, destinatario, CUIT...",
+                value: globalSearch,
+                onChange: e => { setGlobalSearch(e.target.value); doGlobalSearch(e.target.value); },
+              }),
+              globalSearch && React.createElement("button", {
+                style: S.btn("#64748b", true),
+                onClick: () => { setGlobalSearch(""); setGlobalResults(null); }
+              }, "✕"),
+            ),
+            // Resultados
+            globalResults && React.createElement("div", { style: { marginTop: 14 } },
+              Object.keys(globalResults).length === 0
+                ? React.createElement("div", { style: { color: "#94a3b8", fontSize: 14 } }, "Sin resultados.")
+                : Object.values(globalResults).map(({ id, label, icon, color, hits }) =>
+                    React.createElement("div", { key: id, style: { marginBottom: 14 } },
+                      React.createElement("div", { style: { fontWeight: 700, fontSize: 13, color, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 } },
+                        React.createElement("span", null, icon), label,
+                        React.createElement("span", { style: { background: "#f1f5f9", borderRadius: 20, padding: "1px 8px", fontSize: 11, color: "#64748b", fontWeight: 400 } }, `${hits.length} resultado${hits.length > 1 ? "s" : ""}`),
+                      ),
+                      ...hits.map((r, i) =>
+                        React.createElement("div", {
+                          key: i,
+                          style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "#f8fafc", borderRadius: 8, marginBottom: 6, cursor: "pointer" },
+                          onClick: () => { setActiveMod(id); setDetailItem(r); setView("detail"); setGlobalSearch(""); setGlobalResults(null); }
+                        },
+                          React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                            React.createElement("div", { style: { fontWeight: 600, fontSize: 13, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } },
+                              r["Cliente"] || r["Destinatario"] || "—"
+                            ),
+                            React.createElement("div", { style: { fontSize: 12, color: "#64748b" } },
+                              `N° ${r["Número"] || r["Número de Envío"] || "—"} · ${r["Fecha"] || "—"}`
+                            ),
+                          ),
+                          r["Estado"] && React.createElement("span", { style: S.badge(r["Estado"]) }, r["Estado"]),
+                        )
+                      )
+                    )
+                  )
+            ),
+          ),
+
           React.createElement("div", { style: S.grid },
             ...totalByMod.map(m =>
               React.createElement("div", { key: m.id, style: S.statCard(m.color), onClick: () => { setActiveMod(m.id); setView("list"); } },
