@@ -18,12 +18,12 @@ const MODULES = [
 const FIELDS = {
   Facturas: ["Número", "Fecha", "Cliente", "CUIT", "Monto", "Estado"],
   Remitos:  ["Número", "Fecha", "Cliente", "Dirección", "Bultos", "Estado"],
-  OT:       ["Número", "Fecha", "Cliente", "Descripción", "Técnico", "Estado"],
+  OT:       ["Número de Orden", "CUIT", "Cliente", "DNI/CUIT Cliente", "Teléfono", "Email", "Fecha de Recepción", "Fecha de Entrega", "Equipo", "Modelo", "Reporte Inicial", "Diagnóstico", "Solución Aplicada", "Estado"],
   OE:       ["Número", "Fecha", "Destinatario", "Dirección", "Estado"],
-  ML:       ["Número de Envío", "Fecha", "Destinatario", "Producto", "Estado"],
+  ML:       ["Código de Envío", "Ref. ID Venta", "Fecha", "Remitente", "Nota", "Estado"],
   TN:       ["Número de Envío", "Fecha", "Destinatario", "Producto", "Estado"],
-  CA:       ["Número de Envío", "Fecha", "Destinatario", "Dirección", "Estado"],
-  ZN:       ["Número de Envío", "Fecha", "Destinatario", "Dirección", "Estado"],
+  CA:       ["Número de Envío", "Código Sucursal", "Fecha", "Destinatario", "Domicilio", "CP Destino", "Referencia", "Estado"],
+  ZN:       ["Guía Zipnova", "Cuenta", "Destinatario", "Domicilio", "Localidad", "CP Destino", "Bulto", "ID Move", "Control", "Nota", "Estado"],
 };
 
 const ESTADOS = ["Pendiente", "En proceso", "Completado", "Cancelado"];
@@ -150,7 +150,19 @@ const S = {
   sidebarItem: (active, color) => ({ display: "flex", alignItems: "center", gap: 12, padding: "11px 20px", cursor: "pointer", background: active ? "#f1f5f9" : "none", borderLeft: active ? `3px solid ${color}` : "3px solid transparent", color: active ? "#1e293b" : "#64748b", fontWeight: active ? 600 : 400, fontSize: 14 }),
 };
 
-// ── ApiKeyInput ───────────────────────────────────────────────────────────────
+const REQUIRED_FIELDS = {
+  OT: ["Número de Orden", "Cliente", "Equipo"],
+  OE: ["Destinatario", "Dirección"],
+  Facturas: ["Número", "Cliente"],
+  Remitos: ["Número", "Cliente"],
+  ML: ["Código de Envío", "Ref. ID Venta"],
+};
+
+function getIlegibles(moduleId, formData) {
+  return (REQUIRED_FIELDS[moduleId] || []).filter(f => !formData[f] || formData[f].trim() === "" || formData[f].trim().toUpperCase() === "ILEGIBLE");
+}
+
+
 
 function ApiKeyInput({ current, onSave }) {
   const [val, setVal] = useState(current || "");
@@ -301,7 +313,48 @@ function App() {
       const b64 = ev.target.result.split(",")[1];
       setImgPreview(ev.target.result);
       try {
-        if (!apiKey) { setOcrError("Configurá tu API key de Anthropic en el menú ⚙️ para usar el escáner."); setOcrLoading(false); return; }
+  const moduleInstructions = {
+    OT: `Es una Orden de Servicio Técnico de Equus Tecnología S.R.L. Buscá:
+- "Orden de Servicio N°" → Número de Orden
+- "C.U.I.T." de la empresa → CUIT
+- "CLIENTE:" → Cliente
+- "DNI / CUIT:" → DNI/CUIT Cliente
+- "TEL.:" → Teléfono
+- "CORREO ELECTRÓNICO:" → Email
+- "FECHA DE RECEPCIÓN:" → Fecha de Recepción
+- "FECHA DE ENTREGA:" → Fecha de Entrega
+- "EQUIPO:" → Equipo
+- "MODELO:" → Modelo
+- "REPORTE INICIAL:" → Reporte Inicial
+- "DIAGNOSTICO:" → Diagnóstico
+- "SOLUCIÓN APLICADA:" → Solución Aplicada`,
+    ML: `Es una etiqueta de devolución de MercadoLibre. Buscá:
+- El número largo bajo el código de barras → Código de Envío
+- "Ref. ID:" → Ref. ID Venta
+- La fecha en formato "DD/MM/YYYY" → Fecha
+- El nombre del remitente si aparece (puede no estar) → Remitente
+- Cualquier texto manuscrito o nota adicional → Nota`,
+- El número largo bajo el código de barras → Número de Envío
+- El código de sucursal como "FBA01" → Código Sucursal
+- La fecha en formato "DD/MM/YYYY" → Fecha
+- El nombre del destinatario en la parte inferior → Destinatario
+- "Domicilio:" → Domicilio
+- "CP:" → CP Destino
+- "Referencia:" → Referencia`,
+    ZN: `Es una etiqueta de Zipnova. Buscá:
+- "# GUÍA ZIPNOVA" → Guía Zipnova
+- "Cuenta" → Cuenta
+- "Destinatario:" → Destinatario
+- "Domicilio:" → Domicilio
+- "Localidad:" → Localidad
+- "CP" → CP Destino
+- "BULTO" → Bulto
+- "ID MOVE" → ID Move
+- "CONTROL" → Control
+- Texto manuscrito grande → Nota`,
+  };
+  const extraInstructions = moduleInstructions[activeModule] ? `\n\nInstrucciones específicas para este documento:\n${moduleInstructions[activeModule]}` : "";
+ setOcrError("Configurá tu API key de Anthropic en el menú ⚙️ para usar el escáner."); setOcrLoading(false); return; }
         const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
@@ -309,7 +362,14 @@ function App() {
             model: "claude-sonnet-4-20250514", max_tokens: 1000,
             messages: [{ role: "user", content: [
               { type: "image", source: { type: "base64", media_type: file.type || "image/jpeg", data: b64 } },
-              { type: "text", text: `Sos un asistente que extrae datos de documentos comerciales argentinos. Analizá esta imagen y extraé los siguientes campos si están presentes: ${fields.join(", ")}. Respondé SOLO con cada campo en formato "Campo: valor", uno por línea. Si no encontrás un campo, no lo incluyas. No agregues explicaciones.` },
+              { type: "text", text: `Sos un asistente experto en documentos comerciales argentinos. Analizá esta imagen y extraé los siguientes campos: ${fields.join(", ")}.
+
+Reglas:
+- Respondé SOLO con cada campo en formato "Campo: valor", uno por línea.
+- Si un campo está presente pero es ilegible, escribí "Campo: ILEGIBLE".
+- Si un campo directamente no existe en el documento, no lo incluyas.
+- Capturá todo el texto aunque esté manuscrito o poco claro.
+- No agregues explicaciones ni texto extra.${extraInstructions}` },
             ]}],
           }),
         });
@@ -543,21 +603,34 @@ function App() {
           ocrError && React.createElement("div", { style: { color: "#ef4444", fontSize: 13, marginBottom: 12 } }, ocrError),
           imgPreview && React.createElement("img", { src: imgPreview, alt: "preview", style: S.imgPrev }),
           React.createElement("div", { style: S.card },
-            ...fields.map(f =>
-              React.createElement("div", { key: f, style: S.formGroup },
-                React.createElement("label", { style: S.label }, f),
+            ...fields.map(f => {
+              const ilegible = (formData[f] || "").trim().toUpperCase() === "ILEGIBLE" || ((REQUIRED_FIELDS[activeModule] || []).includes(f) && !formData[f]);
+              return React.createElement("div", { key: f, style: S.formGroup },
+                React.createElement("label", { style: { ...S.label, color: ilegible ? "#ef4444" : "#475569" } },
+                  f, ilegible && " ⚠️ Requerido — completá este campo"
+                ),
                 f === "Estado"
                   ? React.createElement("select", { style: S.formInput, value: formData[f] || "", onChange: e => setFormData(p => ({ ...p, [f]: e.target.value })) },
                       ...ESTADOS.map(e => React.createElement("option", { key: e }, e))
                     )
                   : f === "Fecha"
                   ? React.createElement("input", { type: "date", style: S.formInput, value: formData[f] || "", onChange: e => setFormData(p => ({ ...p, [f]: e.target.value })) })
-                  : React.createElement("input", { style: S.formInput, value: formData[f] || "", onChange: e => setFormData(p => ({ ...p, [f]: e.target.value })), placeholder: `Ingresá ${f.toLowerCase()}...` }),
-              )
-            ),
-            React.createElement("button", { style: { ...S.btn(mod.color), width: "100%", padding: 12, opacity: saving ? 0.7 : 1 }, onClick: saveRecord, disabled: saving },
-              saving ? "Guardando..." : "💾 Guardar en Google Sheets"
-            ),
+                  : React.createElement("input", {
+                      style: { ...S.formInput, borderColor: ilegible ? "#ef4444" : "#e2e8f0", background: ilegible ? "#fff5f5" : "#f8fafc" },
+                      value: formData[f] === "ILEGIBLE" ? "" : (formData[f] || ""),
+                      onChange: e => setFormData(p => ({ ...p, [f]: e.target.value })),
+                      placeholder: ilegible ? `⚠️ Completá ${f.toLowerCase()} manualmente...` : `Ingresá ${f.toLowerCase()}...`
+                    }),
+              );
+            }),
+            getIlegibles(activeModule, formData).length > 0 && React.createElement("div", {
+              style: { background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 8, padding: "10px 14px", marginBottom: 12, fontSize: 13, color: "#92400e" }
+            }, `⚠️ Completá los campos marcados antes de guardar: ${getIlegibles(activeModule, formData).join(", ")}`),
+            React.createElement("button", {
+              style: { ...S.btn(mod.color), width: "100%", padding: 12, opacity: (saving || getIlegibles(activeModule, formData).length > 0) ? 0.5 : 1 },
+              onClick: saveRecord,
+              disabled: saving || getIlegibles(activeModule, formData).length > 0
+            }, saving ? "Guardando..." : "💾 Guardar en Google Sheets"),
           ),
         ),
 
