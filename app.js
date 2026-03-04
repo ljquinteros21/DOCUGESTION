@@ -21,7 +21,7 @@ const FIELDS = {
   OT:       ["Número de Orden", "CUIT", "Cliente", "DNI/CUIT Cliente", "Teléfono", "Email", "Fecha de Recepción", "Fecha de Entrega", "Equipo", "Modelo", "Reporte Inicial", "Diagnóstico", "Solución Aplicada", "Estado"],
   OE:       ["Número", "Fecha", "Destinatario", "Dirección", "Estado"],
   ML:       ["Código de Envío", "Ref. ID Venta", "Fecha", "Remitente", "Nota", "Estado"],
-  TN:       ["Número de Envío", "Fecha", "Destinatario", "Producto", "Estado"],
+  TN:       ["Número de Orden", "Fecha", "Cliente", "Teléfono", "DNI", "Producto", "SKU", "Cantidad", "Medio de Pago", "Estado"],
   CA:       ["Número de Envío", "Código Sucursal", "Fecha", "Destinatario", "Domicilio", "CP Destino", "Referencia", "Estado"],
   ZN:       ["Guía Zipnova", "Cuenta", "Destinatario", "Domicilio", "Localidad", "CP Destino", "Bulto", "ID Move", "Control", "Nota", "Estado"],
 };
@@ -328,7 +328,16 @@ function App() {
 - "REPORTE INICIAL:" → Reporte Inicial
 - "DIAGNOSTICO:" → Diagnóstico
 - "SOLUCIÓN APLICADA:" → Solución Aplicada`,
-    ML: `Es una etiqueta de devolución de MercadoLibre. Buscá:
+    TN: `Es una orden de retiro de Tienda Nube de Equus Tecnología. Buscá:
+- "Orden #" → Número de Orden (solo el número, ej: 9602)
+- "Realizada el" → Fecha
+- "Entregar a:" → Cliente
+- "Teléfono:" → Teléfono
+- El número de DNI → DNI
+- El nombre del producto en negrita → Producto
+- "SKU:" → SKU
+- La cantidad a la derecha del producto → Cantidad
+- "Medio de pago:" → Medio de Pago`,
 - El número largo bajo el código de barras → Código de Envío
 - "Ref. ID:" → Ref. ID Venta
 - La fecha en formato "DD/MM/YYYY" → Fecha
