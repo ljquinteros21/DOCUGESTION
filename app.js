@@ -15,10 +15,18 @@ const MODULES = [
   { id: "ZN",        label: "Zipnova",      icon: "⚡", color: "#14b8a6" },
 ];
 
+const OT_ESTADOS = ["Ingresado", "Diagnóstico", "Presupuestado", "Aprobado", "En reparación", "Completado", "Retirado"];
+
+const OT_ROLES = {
+  recepcion: { label: "Recepción", icon: "🗂️", estados: ["Ingresado", "Retirado"] },
+  mecanico:  { label: "Mecánico",  icon: "🔧", estados: ["Diagnóstico", "Aprobado", "En reparación", "Completado"] },
+  encargado: { label: "Encargado", icon: "💼", estados: ["Presupuestado"] },
+};
+
 const FIELDS = {
   Facturas: ["Número", "Fecha", "Cliente", "CUIT", "Monto", "Estado"],
   Remitos:  ["Número", "Fecha", "Cliente", "Dirección", "Bultos", "Estado"],
-  OT:       ["Número de Orden", "CUIT", "Cliente", "DNI/CUIT Cliente", "Teléfono", "Email", "Fecha de Recepción", "Fecha de Entrega", "Equipo", "Modelo", "Reporte Inicial", "Diagnóstico", "Solución Aplicada", "Estado"],
+  OT: ["Número de Orden", "CUIT", "Cliente", "DNI/CUIT Cliente", "Teléfono", "Email", "Fecha de Recepción", "Fecha de Entrega", "Equipo", "Modelo", "Reporte Inicial", "Diagnóstico", "Repuestos Necesarios", "Repuestos Precios", "Mano de Obra", "Total Presupuesto", "Fecha Estimada Fin", "Solución Aplicada", "Monto Pagado", "Forma de Pago", "Estado"],
   OE:       ["Número", "Fecha", "Destinatario", "Dirección", "Estado"],
   ML:       ["Código de Envío", "Ref. ID Venta", "Fecha", "Remitente", "Nota", "Estado"],
   TN:       ["Número de Orden", "Fecha", "Cliente", "Teléfono", "DNI", "Producto", "SKU", "Cantidad", "Medio de Pago", "Estado"],
@@ -214,7 +222,26 @@ function App() {
 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(""), 2800); };
 
-  // ── Auth ──
+  // Auto-login si la sesión es válida
+  useEffect(() => {
+    if (isSessionValid()) {
+      setAuth("loading");
+      const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        prompt: "",
+        callback: async resp => {
+          if (resp.error) { setAuth("idle"); return; }
+          window._gtoken = resp.access_token;
+          setAuth("ready");
+          await loadAll();
+        },
+      });
+      client.requestAccessToken();
+    }
+  }, []);
+
+
   const handleLogin = () => {
     setAuth("loading");
     const client = window.google.accounts.oauth2.initTokenClient({
