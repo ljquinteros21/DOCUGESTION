@@ -435,7 +435,47 @@ Reglas:
   const totalByMod = MODULES.map(m => ({ ...m, count: (data[m.id] || []).length }));
   const recentAll  = MODULES.flatMap(m => (data[m.id] || []).map(r => ({ ...r, _modLabel: m.label, _modColor: m.color }))).slice(0, 8);
 
-  // ── Login screen ──
+  // Pantalla selección de rol
+  if (auth === "ready" && !role) return (
+    React.createElement("div", { style: S.app },
+      React.createElement("div", { style: S.topbar }, React.createElement("span", { style: S.logo }, "DocGestión")),
+      React.createElement("div", { style: S.loginBox },
+        React.createElement("div", { style: { fontSize: 48 } }, "👋"),
+        React.createElement("div", { style: { fontWeight: 700, fontSize: 20, color: "#1e293b" } }, "¿Cuál es tu rol?"),
+        React.createElement("div", { style: { color: "#64748b", fontSize: 14, textAlign: "center" } }, "Esto define qué tareas ves en las Órdenes de Trabajo"),
+        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 280 } },
+          ...Object.entries(OT_ROLES).map(([key, r]) =>
+            React.createElement("button", {
+              key,
+              style: { ...S.btn("#6366f1"), padding: "14px 20px", fontSize: 16, borderRadius: 12, display: "flex", alignItems: "center", gap: 12 },
+              onClick: () => saveRole(key)
+            }, React.createElement("span", { style: { fontSize: 24 } }, r.icon), r.label)
+          )
+        ),
+      )
+    )
+  );
+
+  // Vista OT detalle con flujo
+  if (auth === "ready" && activeModule === "OT" && view === "detail" && detailItem) return (
+    React.createElement("div", { style: S.app },
+      React.createElement("div", { style: S.topbar },
+        React.createElement("button", { style: { background: "none", border: "none", fontSize: 22, cursor: "pointer" }, onClick: () => setSidebar(true) }, "☰"),
+        React.createElement("span", { style: S.logo }, "DocGestión"),
+        React.createElement("span", { style: { fontSize: 13, color: "#64748b" } }, `${OT_ROLES[role]?.icon} ${OT_ROLES[role]?.label}`),
+      ),
+      React.createElement("div", { style: S.main },
+        React.createElement(OTDetail, {
+          rec: detailItem,
+          role,
+          onBack: () => setView("list"),
+          onSave: saveOTRecord,
+        })
+      )
+    )
+  );
+
+
   if (auth !== "ready") return (
     React.createElement("div", { style: S.app },
       React.createElement("div", { style: S.topbar }, React.createElement("span", { style: S.logo }, "DocGestión")),
@@ -486,6 +526,7 @@ Reglas:
         ),
         React.createElement("div", { style: { padding: "16px 20px", borderTop: "1px solid #f1f5f9", marginTop: 8 } },
           React.createElement("button", { style: { ...S.btn("#64748b", true), width: "100%", fontSize: 13 }, onClick: handleLogout }, "🔓 Cerrar sesión"),
+        React.createElement("button", { style: { ...S.btn("#6366f1", true), width: "100%", fontSize: 13, marginTop: 8 }, onClick: () => { localStorage.removeItem("docgestion_role"); setRole(""); setSidebar(false); } }, `${OT_ROLES[role]?.icon || "👤"} Cambiar rol`),
         React.createElement("div", { style: { padding: "12px 20px" } },
           React.createElement("button", { style: { ...S.btn("#6366f1", true), width: "100%", fontSize: 13 }, onClick: () => setShowKeyInput(v => !v) }, "⚙️ API Key Anthropic"),
           showKeyInput && React.createElement(ApiKeyInput, { current: apiKey, onSave: saveApiKey }),
